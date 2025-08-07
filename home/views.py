@@ -5,6 +5,8 @@ import random
 from datetime import date, datetime
 from django.contrib import messages
 from django.http import HttpResponseRedirect
+from django.views.decorators.cache import cache_page
+from django.db.models import Prefetch
 # Create your views here.
 
 def setImages(hotels):
@@ -19,24 +21,48 @@ def setImages(hotels):
 
 
 @login_required
-def index(request):
-    hotels = Hotel.objects.all()
-      # You can set a default image in template if needed
-    search = request.GET.get('search')
-    if search:
-        total_hotels = hotels.filter(hotel_name__icontains = search)
-        hotels = setImages(total_hotels)
-    sort_by = request.GET.get('sort_by')
-    if sort_by:
-        if sort_by == 'sort_low':
-            hotels = hotels.order_by('hotel_offer_price')
+@cache_page(60*2)
+# def index(request):
+#     hotels = Hotel.objects.all().select_related('hotel_owner')
+#       # You can set a default image in template if needed
+#     search = request.GET.get('search')
+#     if search:
+#         total_hotels = hotels.filter(hotel_name__icontains = search)
+#         hotels = setImages(total_hotels)
+#     sort_by = request.GET.get('sort_by')
+#     if sort_by:
+#         if sort_by == 'sort_low':
+#             hotels = hotels.order_by('hotel_offer_price')
 
-        elif sort_by == 'sort_high':
-            hotels = hotels.order_by('-hotel_offer_price')
+#         elif sort_by == 'sort_high':
+#             hotels = hotels.order_by('-hotel_offer_price')
+
+#     hotels = setImages(hotels)
+#     context = {'hotels': hotels}
+#     return render(request, 'index.html', context)
+
+def index(request):
+    search = request.GET.get('search')
+    sort_by = request.GET.get('sort_by')
+
+    hotels = Hotel.objects.select_related('hotel_owner').prefetch_related(
+        Prefetch('hotel_images'),
+        Prefetch('ameneties')
+    )
+
+    if search:
+        hotels = hotels.filter(hotel_name__icontains=search)
+
+    if sort_by == 'sort_low':
+        hotels = hotels.order_by('hotel_offer_price')
+    elif sort_by == 'sort_high':
+        hotels = hotels.order_by('-hotel_offer_price')
 
     hotels = setImages(hotels)
+
     context = {'hotels': hotels}
     return render(request, 'index.html', context)
+
 
 
 import math
